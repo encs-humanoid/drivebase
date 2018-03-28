@@ -48,8 +48,8 @@ int echoPin4 = 9 ; //(D27) Left Front Corner ultrasonic sensor 4
 
 int trigPin5 = 10 ; //(D28) Right Front Corner ultrasonic sensor 5
 int echoPin5 = 11 ; //(D29) Right Front Corner ultrasonic sensor 5
-int trigPin6 = 12 ; //(D30) Left Front Corner ultrasonic sensor 6
-int echoPin6 = 13 ; //(D31) Left Front Corner ultrasonic sensor 6
+int trigPin6 = 22 ; //(D30) Left Front Corner ultrasonic sensor 6
+int echoPin6 = 23 ; //(D31) Left Front Corner ultrasonic sensor 6
 
 int numSensors = 6; // Number of ultrasonic sensors mounted on the robot
 int trigPins[] = { trigPin1, trigPin2, trigPin3, trigPin4, trigPin5, trigPin6 };
@@ -57,7 +57,7 @@ int echoPins[] = { echoPin1, echoPin2, echoPin3, echoPin4, echoPin5, echoPin6 };
 #endif
 
 int currentSensor = 0;
-int sweepTime = numSensors * 20;  // Number of milliseconds to sweep all sensors
+int sweepTime = numSensors * 40;  // Number of milliseconds to sweep all sensors
 char frameid[32];
 
 /*******************************************************************

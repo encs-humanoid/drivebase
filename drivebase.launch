@@ -4,7 +4,7 @@
 		<param name="publish_frequency" value="1.0"/>
 		<param name="tf_prefix" type="string" value=""/>
 	</node>
-        <node name="drive_node" pkg="rosserial_python" type="serial_node.py" args="/dev/arduino">
+        <node name="drive_node" pkg="rosserial_python" type="serial_node.py" args="/dev/ttyACM0">
 		<param name="baud" value="57600"/>
 	</node>
 	<node name="neato_laser" pkg="xv_11_laser_driver" type="neato_laser_publisher">
@@ -13,6 +13,7 @@
 		<param name="baud_rate" value="115200"/>
 	</node>
 	<node name="joy_ride" pkg="drivebase" type="joy_ride.py">
+		<!-- change to /cmd_vel_raw to enable obstacle avoidance -->
 		<param name="cmd" value="/cmd_vel"/>
 	</node>
 	<node name="obs_avoid" pkg="drivebase" type="obs_avoid.py"/>

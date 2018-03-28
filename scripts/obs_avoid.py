@@ -25,9 +25,9 @@ import std_msgs.msg
 import sys
 
 
-FAST_THRESHOLD = 1.0  # 1 meter
-SLOW_THRESHOLD = 0.4  # 40 cm
-STOP_THRESHOLD = 0.15 # 15 cm
+FAST_THRESHOLD = 0.5  # 1 meter
+SLOW_THRESHOLD = 0.2  # 40 cm
+STOP_THRESHOLD = 0.10 # 15 cm
 SLOW_FACTOR = 0.4
 
 
@@ -41,11 +41,11 @@ class ObstacleAvoidanceNode(object):
 	rospy.init_node('obs_avoid_node')
 	rospy.myargv(sys.argv) # process ROS args and return the rest
 
-	cmd_topic = rospy.get_param("~cmd", "/cmd_vel")
+	cmd_topic = rospy.get_param("~cmd", "/cmd_vel_raw")
 	rospy.loginfo('Parameter %s has value %s', rospy.resolve_name('~cmd'), cmd_topic)
 	range_topic = rospy.get_param("~range", "/ultrasound")
 	rospy.loginfo('Parameter %s has value %s', rospy.resolve_name('~range'), range_topic)
-	out_topic = rospy.get_param("~out", "/cmd_vel_raw")
+	out_topic = rospy.get_param("~out", "/cmd_vel")
 	rospy.loginfo('Parameter %s has value %s', rospy.resolve_name('~out'), out_topic)
 	control_topic = rospy.get_param("~control", "/control")
 	rospy.loginfo('Parameter %s has value %s', rospy.resolve_name('~control'), control_topic)
