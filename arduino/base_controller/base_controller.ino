@@ -16,9 +16,9 @@ ros::NodeHandle  nh;
  * Ultrasonic sensor declarations
  *******************************************************************/
 
-#if 0
-int trigPin1 = 20 ; //(D20) Front Right ultrasonic sensor 1
-int echoPin1 = 21 ; //(D21) Front Right ultrasonic sensor 1
+#if 1
+int trigPin1 = 32 ; //(D20) Front Right ultrasonic sensor 1
+int echoPin1 = 33 ; //(D21) Front Right ultrasonic sensor 1
 int trigPin2 = 22 ; //(D22) Front Left ultrasonic sensor 2
 int echoPin2 = 23 ; //(D23) Front Left ultrasonic sensor 2
 
@@ -131,7 +131,7 @@ void MotorSetup()
     frontRight.attach(MOTOR1);
     backLeft.attach(MOTOR2);
     backRight.attach(MOTOR3);   
-    
+
     /* Turn the motors off */
     MotorDrive(0,0,0,0);
 }
@@ -172,7 +172,7 @@ void MotorDrive(int fl, int fr, int bl, int br)
   int bl2 = MotorMapSpeed(bl);
   int br2 = MotorMapSpeed(-br);
 
-  nh.loginfo("MotorDrive");
+  //nh.loginfo("MotorDrive");
   
   frontLeft.write(fl2);
   frontRight.write(fr2);
