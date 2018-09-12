@@ -143,21 +143,13 @@ void MotorSetup()
  */
 static int MotorMapSpeed(int in)
 {  
-  if (in > 127) {
-     in = 127;
-  } else if ((in >= -5) && (in <= 5)) {
-     in = 0;
-  } else if (in < -127) {
-     in = -127;
-  }
-  
-  return map(in,-127,127,MOTOR_MAX_REV,MOTOR_MAX_FWD);
+  return MOTOR_NEUTRAL + (int) (((long)in * MOTOR_MAX_SPEED) / 1000);
 }
 
 /*
  * Send speeds to the motor. 
  *
- * The ROS motor speeds are mapped to be between [-128, +127]
+ * The incoming motor speeds are in millimeters per second for each motor
  *
  * Note that the forward/reverse is as respect to the motor, and not it's
  *    orientation within the chassis - for example, those on the left and 
@@ -165,7 +157,6 @@ static int MotorMapSpeed(int in)
  */
 void MotorDrive(int fl, int fr, int bl, int br)
 {
-  /* Map the ROS speeds to the min/max motor speeds */
   int fr2 = MotorMapSpeed(-fr);
   int bl2 = MotorMapSpeed(bl);
   int br2 = MotorMapSpeed(-br);
@@ -185,23 +176,30 @@ void MotorDrive(int fl, int fr, int bl, int br)
  *******************************************************************/
 
 // Global values that are written to on each ROS joystick twist message
-int drive=0, strafe=0, theta=0;
+// These are in millimeters per second (mmps) for drive and strafe, and 
+//    milli-radians per second (mrps) for the theta value
+int drive_mmps=0, strafe_mmps=0, theta_mrps=0;
 
 /*
  * ROS callback function that is invoked on each ROS joystick message
  */
 void on_twist(const geometry_msgs::Twist& twist_msg)
 {
-   // Map double [-1.0..+1.0] to integral [-127..128] and save to globals
-   drive  = (int) (127.0 * twist_msg.linear.y);
-   strafe = (int) (127.0 * twist_msg.linear.x);
-   theta  = (int) (127.0 * twist_msg.angular.z);
+   // Map incomin meters per second and radians per second to
+   //    millimeters per second and milli-radians per second so 
+   //    can perform the PID calculations as integral and not float
+   drive_mmps  = (int) (1000.0 * twist_msg.linear.y);
+   strafe_mmps = (int) (1000.0 * twist_msg.linear.x);
+   theta_mrps  = (int) (1000.0 * twist_msg.angular.z);
 }
 
 /*
  * Convert the drive (front/back), strafe (left/right) and theta (twist)
  *    joystick values into individual motor movement values and write them
  *    out to the motor speed controllers
+ *
+ * The drive and strafe are in millimeters per second, while the theta is
+ *    in milli-radians per second
  */
 void MecanumDrive(int drive, int strafe, int theta)
 {
@@ -299,6 +297,45 @@ static void quadratureInterrupt(void)
   previousQuads = currentQuads;
 }
 
+// This function maps the quadrature encoder values to millimeters 
+// 
+// Wheels are 4" diameter, or 4*PI per rotation, or 319.2 mm/rotation
+// Encoders produce 4 edges per degree of rotation, or 1,440 edges/rotation
+// So each tick represents 319.2/1,440, which can be reduced to 133 / 600
+// allowing us to use integers and not floats, yet still keep the calculations 
+// within the size of a 16 bit integer
+//
+// This fails if the value exceeds a signed 16 bit value which occurs if ticks
+// exceeds 246 (246 * 133 > 32767), so we need to sample this value before 246
+// ticks (or edges). This means we need to sample at least once every 61.5 degrees
+// of motion (if we only sample that fast, we have much bigger problems).
+int encoderTicksToMM(int ticks)
+{
+   return (ticks * 133) / 600;
+}
+
+
+
+void encoderSpeed_mmps(int *fl, int *fr, int *bl, int *br)
+{
+    // Some notes on the 0..3 values here and how they were derived.
+    //    Unfortunately it is a bit convoluted (would accept any
+    //    suggestion on how to make this better).
+    // The mapping is a two part process. First map the 0..3 into a 
+    //    motor value from the comments above quadratureInterrupt
+    // Then we map the motor value to position on the robot from the
+    //    comments where MOTOR1..MOTOR4 are defined
+    //
+    // The 0 quadValue index maps to motor 4, which then maps to front left
+    // The 1 quadValue index maps to motor 3, which then maps to back right
+    // The 2 quadValue index maps to motor 2, which then maps to back left
+    // The 3 quadValue index maps to motor 1, which then maps to front right  
+    *fl = encoderTicksToMM(quadValues[0]);  
+    *br = encoderTicksToMM(quadValues[1]);  
+    *bl = encoderTicksToMM(quadValues[2]);  
+    *fr = encoderTicksToMM(quadValues[3]);  
+}
+
 
 /*******************************************************************
  * Setup function - called once at start of program
@@ -391,7 +428,7 @@ void loop()
   nh.spinOnce();
 
   // Now that the callbacks have been called, we can update the drive motors
-  MecanumDrive(drive,strafe,theta);
+  MecanumDrive(drive_mmps,strafe_mmps,theta_mrps);
   
   delay(30);
 }
