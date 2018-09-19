@@ -30,6 +30,11 @@
 #include <std_msgs/Int16MultiArray.h>
 #include <Servo.h>
 
+#define PID_ENABLED   0
+#if PID_ENABLED
+#include <FastPID.h>
+#endif
+
 // Global ROS node handle
 ros::NodeHandle nh;
 
@@ -116,6 +121,19 @@ Servo   backLeft;     // Motor 2
 Servo   backRight;    // Motor 3
 Servo   frontLeft;    // Motor 4
 
+#if PID_ENABLED
+#define PID_KP      0.3
+#define PID_KI      0.0
+#define PID_KD      0.0
+#define PID_HZ      10
+#define PID_NBITS   16
+
+FastPID frPID(PID_KP, PID_KI, PID_KD, PID_HZ, PID_NBITS, true);
+FastPID blPID(PID_KP, PID_KI, PID_KD, PID_HZ, PID_NBITS, true);
+FastPID brPID(PID_KP, PID_KI, PID_KD, PID_HZ, PID_NBITS, true);
+FastPID flPID(PID_KP, PID_KI, PID_KD, PID_HZ, PID_NBITS, true);
+#endif
+
 /*******************************************************************
  * Motor control subroutines
  *******************************************************************/
@@ -163,6 +181,20 @@ void MotorDrive(int fl, int fr, int bl, int br)
   int fl2 = MotorMapSpeed(fl);
 
 //  nh.loginfo("MotorDrive");
+
+#if PID_ENABLED
+  // RER- this is NOT correct as MotorMapSpeed has converted our nice mms
+  //      value into a RC pulse signal and that needs to be removed
+  //      In addition, we are assuming a PID rate of 10Hz, but we are not
+  //      doing anything yet to verify/force that.
+  int fl_enc, fr_enc, bl_enc, br_enc);
+  encoderSpeed_mmps(int &fl_enc, int &fr_enc, int &bl_enc, int &br_enc)
+  
+  fr2 = frPID.step(fr, fr_enc);
+  bl2 = frPID.step(fr, bl_enc);
+  br2 = frPID.step(fr, br_enc);
+  fl2 = frPID.step(fr, fl_enc);  
+#endif
   
   frontRight.write(fr2);
   backLeft.write(bl2);
@@ -299,19 +331,19 @@ static void quadratureInterrupt(void)
 
 // This function maps the quadrature encoder values to millimeters 
 // 
-// Wheels are 4" diameter, or 4*PI per rotation, or 319.2 mm/rotation
+// Wheels are 6" diameter, or 4*PI per rotation, or 478.78 mm/rotation
 // Encoders produce 4 edges per degree of rotation, or 1,440 edges/rotation
-// So each tick represents 319.2/1,440, which can be reduced to 133 / 600
+// So each tick represents 478.78/1,440, which can be reduced to 133 / 400
 // allowing us to use integers and not floats, yet still keep the calculations 
 // within the size of a 16 bit integer
 //
 // This fails if the value exceeds a signed 16 bit value which occurs if ticks
 // exceeds 246 (246 * 133 > 32767), so we need to sample this value before 246
-// ticks (or edges). This means we need to sample at least once every 61.5 degrees
+// ticks (or edges). This means we need to sample at least once every 41 degrees
 // of motion (if we only sample that fast, we have much bigger problems).
 int encoderTicksToMM(int ticks)
 {
-   return (ticks * 133) / 600;
+   return (ticks * 133) / 400;
 }
 
 
@@ -368,6 +400,14 @@ void setup()
 
   // Initialize the motor controllers and stopped motor speed
   MotorSetup();
+
+#if PID_ENABLED
+  // Verify no issue with the PID setup (what do we do if an error?)
+  if (frPID.err() || blPID.err() || brPID.err() || flPID.err()) {
+     print("FASTPID configuration error - halting!\n");
+     for(;;);     
+  }  
+#endif
 
   // Initialize the range message (used by range_pub callback)
   rangeData.radiation_type = sensor_msgs::Range::ULTRASOUND;
