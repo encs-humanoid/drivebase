@@ -333,17 +333,12 @@ static void quadratureInterrupt(void)
 // 
 // Wheels are 6" diameter, or 4*PI per rotation, or 478.78 mm/rotation
 // Encoders produce 4 edges per degree of rotation, or 1,440 edges/rotation
-// So each tick represents 478.78/1,440, which can be reduced to 133 / 400
-// allowing us to use integers and not floats, yet still keep the calculations 
-// within the size of a 16 bit integer
-//
-// This fails if the value exceeds a signed 16 bit value which occurs if ticks
-// exceeds 246 (246 * 133 > 32767), so we need to sample this value before 246
-// ticks (or edges). This means we need to sample at least once every 41 degrees
-// of motion (if we only sample that fast, we have much bigger problems).
+// So each tick represents 478.78/1,440. This can be reduced to a simple
+// divide by 3 to convert ticks to mm using only integers. This is way more
+// efficient than using floats, yet with only 0.25% error!
 int encoderTicksToMM(int ticks)
 {
-   return (ticks * 133) / 400;
+   return (ticks / 3);
 }
 
 
