@@ -15,11 +15,12 @@
 		<param name="firmware_version" value="2"/>
 		<param name="baud_rate" value="115200"/>
 	</node>
-	<node name="joy_ride" pkg="drivebase" type="joy_ride.py">
-		<!-- change to /cmd_vel_raw to enable obstacle avoidance -->
-		<param name="cmd" value="/cmd_vel"/>
+	<node name="joy_ride_node" pkg="drivebase" type="joy_ride.py">
+		<!-- change to /cmd_vel to disable obstacle avoidance -->
+		<param name="cmd" value="/cmd_vel_raw"/>
 	</node>
-	<node name="obs_avoid" pkg="drivebase" type="obs_avoid.py"/>
+	<node name="obs_avoid_node" pkg="drivebase" type="obs_avoid.py"/>
+	<node name="sonar_obs_node" pkg="drivebase" type="sonar_obs.py"/>
 	<node name="joy_node" pkg="joy" type="joy_node"/>
 </launch>
 

@@ -3,9 +3,7 @@
  *  
  *  This code currently handles the following tasks:
  *      > receives joystick control commands for motor speed control
- *      > calculate mecanum speed co
- 
- ntrols for each motor/wheel
+ *      > calculate mecanum speed controls for each motor/wheel
  *      > open loop control of motor speed
  *      > read and publish the motor quadrature sensors 
  *      > read and publish the ultrasonic sensor data
@@ -187,8 +185,8 @@ void MotorDrive(int fl, int fr, int bl, int br)
   //      value into a RC pulse signal and that needs to be removed
   //      In addition, we are assuming a PID rate of 10Hz, but we are not
   //      doing anything yet to verify/force that.
-  int fl_enc, fr_enc, bl_enc, br_enc);
-  encoderSpeed_mmps(int &fl_enc, int &fr_enc, int &bl_enc, int &br_enc)
+  int fl_enc, fr_enc, bl_enc, br_enc;
+  encoderSpeed_mmps(&fl_enc, &fr_enc, &bl_enc, &br_enc);
   
   fr2 = frPID.step(fr, fr_enc);
   bl2 = frPID.step(fr, bl_enc);
@@ -221,7 +219,7 @@ void on_twist(const geometry_msgs::Twist& twist_msg)
    //    millimeters per second and milli-radians per second so 
    //    can perform the PID calculations as integral and not float
    drive_mmps  = (int) (1000.0 * twist_msg.linear.y);
-   strafe_mmps = (int) (1000.0 * twist_msg.linear.x);
+   strafe_mmps = (int) (1000.0 * -twist_msg.linear.x); // DWM 16-Oct-2018 reversed X to fix strafe movement for obstacle avoidance
    theta_mrps  = (int) (1000.0 * twist_msg.angular.z);
 }
 
@@ -399,7 +397,7 @@ void setup()
 #if PID_ENABLED
   // Verify no issue with the PID setup (what do we do if an error?)
   if (frPID.err() || blPID.err() || brPID.err() || flPID.err()) {
-     print("FASTPID configuration error - halting!\n");
+     Serial.print("FASTPID configuration error - halting!\n");
      for(;;);     
   }  
 #endif
@@ -467,4 +465,3 @@ void loop()
   
   delay(30);
 }
-
