@@ -1,4 +1,4 @@
-<robot name="test_model">
+<robot name="daleken">
 <material name="light_gray">
   <color rgba=".4 .4 .4 0.9" />
 </material>
@@ -8,11 +8,14 @@
 <material name="white">
   <color rgba=".9 .9 .9 1" />
 </material>
+<material name="purple">
+  <color rgba=".4 .0 .4 1" />
+</material>
 <link name="base_link">
   <visual>
-    <origin xyz="0 0 0.053" rpy="0 0 0.785" />
+    <origin xyz="0 0.30 -0.18" rpy="0 0 0.785" />
     <geometry>
-      <box size="0.21 0.21 0.085" />
+      <box size="0.745 0.838 0.18" />
     </geometry>
     <material name="light_gray"/>
   </visual>
@@ -20,11 +23,11 @@
 
 <link name="imu">
   <visual>
-    <origin xyz="0 -0.01 0.01" rpy="0 0 0" />
+    <origin xyz="0 -0.005 0.01" rpy="0 0 0" />
     <geometry>
-      <box size="0.02 0.04 0.02" />
+      <box size="0.04 0.04 0.01" />
     </geometry>
-    <material name="white"/>
+    <material name="purple"/>
   </visual>
 </link>
 

@@ -4,7 +4,7 @@
 		<param name="publish_frequency" value="1.0"/>
 		<param name="tf_prefix" type="string" value=""/>
 	</node>
-        <node name="drive_node" pkg="rosserial_python" type="serial_node.py" args="/dev/ttyACM0">
+        <node name="drive_node" pkg="rosserial_python" type="serial_node.py" args="/dev/arduino">
 		<param name="baud" value="57600"/>
 	</node>
         <node name="light_node" pkg="rosserial_python" type="serial_node.py" args="/dev/ttyUSB0">
@@ -21,6 +21,10 @@
 	</node>
 	<node name="obs_avoid_node" pkg="drivebase" type="obs_avoid.py"/>
 	<node name="sonar_obs_node" pkg="drivebase" type="sonar_obs.py"/>
+	<node name="laser_obs_node" pkg="drivebase" type="laser_obs.py"/>
+	<node name="obs_marker_node" pkg="drivebase" type="obs_markers.py">
+		<param name="fixed_frame" value="neato_laser"/>
+	</node>
 	<node name="joy_node" pkg="joy" type="joy_node"/>
 </launch>
 

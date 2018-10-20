@@ -45,7 +45,7 @@ class ObstacleMarkerNode(object):
 	out_topic = self.get_param("~out", "/obs_marker")
 	self.window = float(self.get_param("~window", "0.5")) # seconds
 	self.rate = self.get_param('~rate', 10)
-	self.range_mult = float(self.get_param("~range_mult", 10.0))
+	self.range_mult = float(self.get_param("~range_mult", 1.0))
 	self.fixed_frame = self.get_param("~fixed_frame", "/odom")
 	scale = self.get_param('~scale', 0.2)
 	lifetime = self.get_param('~lifetime', 0) # 0 is forever
