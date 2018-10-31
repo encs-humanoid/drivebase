@@ -25,7 +25,7 @@
 #include <geometry_msgs/Twist.h>
 #include <sensor_msgs/Joy.h>
 #include <sensor_msgs/Range.h>
-#include <std_msgs/Int16MultiArray.h>
+#include <std_msgs/Float32.h>
 #include <Servo.h>
 
 #define PID_ENABLED   0
@@ -372,8 +372,10 @@ sensor_msgs::Range rangeData;
 ros::Publisher range_pub( "/ultrasound", &rangeData);
 
 // Structure and callback for quadrathre ROS publication
-std_msgs::Int16MultiArray quadArray;
-ros::Publisher quad_pub("/quadrature", &quadArray);
+std_msgs::Float32 msg1;
+std_msgs::Float32 msg2;
+ros::Publisher chatter1("val1", &msg1);
+ros::Publisher chatter2("val2", &msg2);
 
 // Subscriber callback for joystick movements
 ros::Subscriber<geometry_msgs::Twist> twist_sub("/cmd_vel", &on_twist);
@@ -391,6 +393,9 @@ void setup()
 //  nh.advertise(quad_pub);
   nh.subscribe(twist_sub);
 
+  nh.advertise(chatter1);
+  nh.advertise(chatter2);
+  
   // Initialize the motor controllers and stopped motor speed
   MotorSetup();
 
@@ -413,6 +418,8 @@ void setup()
     pinMode(trigPins[i], OUTPUT);
     pinMode(echoPins[i], INPUT);
   }
+
+//  r = rospy.rate(20);
 }
 
 
@@ -422,15 +429,7 @@ void setup()
 
 void loop()
 {
-  // Since the time for reading the ultrasonic is variable due to short
-  //   or long echo times, this logic tries to keep the interval fairly
-  //   consistent from reading to reading. This is temporary until the
-  //   ultrasonic code is rewritten to be interrupt driven
-//  int now = millis();
-//  if (now < nextLoopInterval) {
-//     return;
-//  }
-//  nextLoopInterval = now + LOOP_INTERVAL_TIME;
+//  r.sleep();
   
   // Read just one distance sensor now
   int distance = getDistance(trigPins[currentSensor], echoPins[currentSensor]);
@@ -447,13 +446,11 @@ void loop()
   // Publish the updated ultrasonic distance values
   range_pub.publish(&rangeData);
 
-  // Publish quadrature encoder values
-  // https://answers.ros.org/question/223565/array-data-from-arduino/
-//  for (int i = 0; i < NUM_QUADRATURES; i++) {
-//     quadArray.data[i] = quadValues[i];
-//  }
-//  quad_pub.publish(&quadArray);
-    
+  msg1.data = drive_mmps;
+  msg2.data = strafe_mmps;
+  chatter1.publish(&msg1);
+  chatter2.publish(&msg2);
+        
   // spinonce gives permission for ROS to invoke our callbacks since 
   //   we do not have preemptive tasking so we need to fill in any data
   //   that is a publish (like range_pub) before spinonce, and do any
