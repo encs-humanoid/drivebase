@@ -34,6 +34,27 @@ STOP_THRESHOLD = 0.10 # 15 cm
 SLOW_FACTOR = 0.4
 
 
+def interpolate_points(points, points_per_edge):
+    """
+    Generate points_per_edge new points in between pairs of existing points
+    and return the expanded point set.  Assumes the points list contains
+    adjacent points.
+    """
+    new_points = []
+    if len(points) > 0:
+    	new_points.append(points[0])
+	for i in xrange(len(points) - 1):
+	    p1 = np.array(points[i])
+	    p2 = np.array(points[i + 1])
+	    for j in xrange(points_per_edge):
+		interval = 1.0 / (points_per_edge + 1)
+		p = p1 + ((j + 1) * interval) * (p2 - p1)
+		new_points.append(p)
+	    new_points.append(p2)
+
+    return new_points
+
+
 def normalize(v):
     norm = np.linalg.norm(v)
     if norm == 0:
@@ -57,11 +78,6 @@ class ObstacleAvoidanceNode(object):
 	self.window = float(self.get_param("~window", "0.5")) # seconds
 	self.base_frame = self.get_param("~base_frame", "base_link")
 
-	self.pub = rospy.Publisher(out_topic, geometry_msgs.msg.Twist, queue_size=50)
-	cmd_sub = rospy.Subscriber(cmd_topic, geometry_msgs.msg.Twist, self.on_twist)
-	obs_sub = rospy.Subscriber(obs_topic, drivebase.msg.Obstacle, self.on_obstacle)
-	control_sub = rospy.Subscriber(control_topic, std_msgs.msg.String, self.on_control)
-
 	# Initialize the tf listener
 	self.tf_listener = tf.TransformListener()
 
@@ -69,6 +85,27 @@ class ObstacleAvoidanceNode(object):
 	self.twist = None
 	self.scale = 1.0
 	self.joy_override = False
+
+	# Initialize robot boundary points (in base frame)
+	# TODO derive robot boundary points from the URDF
+	self.boundary = []
+	# "base_link"
+	# <origin xyz="0 0 0" rpy="0 0 0" />
+      	# <box size="0.725 0.815 0.08" />
+	# "platform"
+	# <origin xyz="0 0.095 0" rpy="0 0 0" />
+	# <box size="0.745 1.03 0.02" />
+	self.boundary.append((-0.745/2, -1.030/2 + 0.095))	# back left
+	self.boundary.append(( 0.725/2, -1.030/2 + 0.095))	# back right
+	self.boundary.append(( 0.725/2,  1.030/2 - 0.095))	# front right
+	self.boundary.append(( 0.000  ,  1.030/2 + 0.095))	# front middle
+	self.boundary.append((-0.745/2,  1.030/2 - 0.095))	# front left
+	self.boundary = interpolate_points(self.boundary, 8)
+
+	self.pub = rospy.Publisher(out_topic, geometry_msgs.msg.Twist, queue_size=50)
+	cmd_sub = rospy.Subscriber(cmd_topic, geometry_msgs.msg.Twist, self.on_twist)
+	obs_sub = rospy.Subscriber(obs_topic, drivebase.msg.Obstacle, self.on_obstacle)
+	control_sub = rospy.Subscriber(control_topic, std_msgs.msg.String, self.on_control)
 
 
     def get_param(self, param, default):
@@ -97,7 +134,8 @@ class ObstacleAvoidanceNode(object):
 	if twist is None:
 	    return None
 	
-	v = np.array([twist.linear.x, twist.linear.y])
+	v = np.array([twist.linear.x, twist.linear.y])  # linear velocity
+	w = twist.angular.z  # angular velocity
 	n = np.linalg.norm(v)
 	if n > 0:   # if velocity is nonzero
 	    for obs in self.obstacles:
@@ -114,11 +152,21 @@ class ObstacleAvoidanceNode(object):
 		    obs.dy = p.point.y
 		    obs.dz = p.point.z
 
+		# find closest point on robot
+		#b = np.array([obs.dx, obs.dy])	# obstacle position
+		#r_index = np.argmin([np.linalg.norm(b - r) for r in self.boundary])
+		#r = self.boundary[r_index]	# closest point on robot boundary
 	    	ov = obs_vec_xy(obs)
 		p = np.dot(v, ov)  			# calculate projection on obstacle vector
 		if (p > 0):				# if a component of velocity is going toward the sensor
 		    scale = self.compute_scale(obs.range)
 		    v -= (1.0 - scale) * p * ov		# subtract a scaled amount depending on the range
+		#    if abs(r[0]) > 1.0e-5:		# rx != 0
+		#	w -= (1.0 - scale) * w * ((r[0] * ov[1] - r[1] * ov[0]) * ov[1]) / r[0]
+		#	print('rx: w=' + str(w))
+		#    elif abs(r[1]) > 1.0e-5:		# ry != 0
+		#	w += (1.0 - scale) * w * ((r[0] * ov[1] - r[1] * ov[0]) * ov[0]) / r[1]
+		#	print('ry: w=' + str(w))
 
 	adj_twist = geometry_msgs.msg.Twist()
 	adj_twist.linear = geometry_msgs.msg.Vector3()
@@ -128,7 +176,7 @@ class ObstacleAvoidanceNode(object):
 	adj_twist.angular = geometry_msgs.msg.Vector3()
 	adj_twist.angular.x = twist.angular.x
 	adj_twist.angular.y = twist.angular.y
-	adj_twist.angular.z = 0.5 * twist.angular.z
+	adj_twist.angular.z = w
 	return adj_twist
 
 
@@ -154,11 +202,13 @@ class ObstacleAvoidanceNode(object):
 
 
     def on_control(self, msg):
-	if msg == "reset" and self.full_stop:
+	if msg.data == "reset" and self.full_stop:
 	    rospy.loginfo('received reset control message')
-	elif msg == "joy_override":
+	elif msg.data == "joy_override":
+	    rospy.loginfo('received joy_override control message')
 	    self.joy_override = True
-	elif msg == "joy_normal":
+	elif msg.data == "joy_normal":
+	    rospy.loginfo('received joy_normal control message')
 	    self.joy_override = False
 
 
