@@ -23,6 +23,7 @@ import sensor_msgs.msg
 import serial
 import std_msgs.msg
 import sys
+import tf
 
 
 def normalize(v):
@@ -46,7 +47,7 @@ class ObstacleMarkerNode(object):
 	self.window = float(self.get_param("~window", "0.5")) # seconds
 	self.rate = self.get_param('~rate', 10)
 	self.range_mult = float(self.get_param("~range_mult", 1.0))
-	self.fixed_frame = self.get_param("~fixed_frame", "/odom")
+	self.fixed_frame = self.get_param("~fixed_frame", "/base_link")
 	scale = self.get_param('~scale', 0.2)
 	lifetime = self.get_param('~lifetime', 0) # 0 is forever
 	ns = self.get_param('~ns', 'obs')
@@ -55,6 +56,9 @@ class ObstacleMarkerNode(object):
 
 	self.pub = rospy.Publisher(out_topic, visualization_msgs.msg.Marker, queue_size=50)
 	obs_sub = rospy.Subscriber(obs_topic, drivebase.msg.Obstacle, self.on_obstacle)
+
+	# Initialize the tf listener
+	self.tf_listener = tf.TransformListener()
 
 	self.obstacles = []
 	self.markers = visualization_msgs.msg.Marker()
@@ -91,24 +95,22 @@ class ObstacleMarkerNode(object):
 
 	    # Add obstacle positions
 	    for obs in self.obstacles:
-	    	position = geometry_msgs.msg.Point()
-		#try:
-		    # TODO enable this to work through TF
-		    #(trans, rot)  = tf_listener.lookupTransform(self.fixed_frame, obs.header.frame_id, rospy.Time(0))
-		    # TODO apply the transformation to the obstacle position to get the marker position
-		    #position.x = trans[0]
-		    #position.y = trans[1]
-		    #position.z = trans[2]
 		ov = self.range_mult * obs_vec_xy(obs)
 
-		position.x = obs.range * ov[0]
-		position.y = obs.range * ov[1]
-		position.z = obs.dz
+		pointStamped = geometry_msgs.msg.PointStamped()
+		pointStamped.header = obs.header
+		pointStamped.point.x = obs.range * ov[0]
+		pointStamped.point.y = obs.range * ov[1]
+		pointStamped.point.z = obs.dz  # TODO convert to proper 3D obstacle positions
+		p = self.tf_listener.transformPoint(self.fixed_frame, pointStamped)
 
-		    # Set a marker at the origin of this frame
+	    	position = geometry_msgs.msg.Point()
+		position.x = p.point.x
+		position.y = p.point.y
+		position.z = p.point.z
+
+		# Set a marker at the origin of this frame
 		self.markers.points.append(position)
-		#except:
-		    #pass
 
 	    # Publish the set of markers
 	    self.pub.publish(self.markers)

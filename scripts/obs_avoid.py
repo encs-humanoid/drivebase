@@ -25,6 +25,7 @@ import sensor_msgs.msg
 import serial
 import std_msgs.msg
 import sys
+import tf
 
 
 FAST_THRESHOLD = 0.5  # 1 meter
@@ -54,11 +55,15 @@ class ObstacleAvoidanceNode(object):
 	out_topic = self.get_param("~out", "/cmd_vel")
 	control_topic = self.get_param("~control", "/control")
 	self.window = float(self.get_param("~window", "0.5")) # seconds
+	self.base_frame = self.get_param("~base_frame", "base_link")
 
 	self.pub = rospy.Publisher(out_topic, geometry_msgs.msg.Twist, queue_size=50)
 	cmd_sub = rospy.Subscriber(cmd_topic, geometry_msgs.msg.Twist, self.on_twist)
 	obs_sub = rospy.Subscriber(obs_topic, drivebase.msg.Obstacle, self.on_obstacle)
 	control_sub = rospy.Subscriber(control_topic, std_msgs.msg.String, self.on_control)
+
+	# Initialize the tf listener
+	self.tf_listener = tf.TransformListener()
 
 	self.obstacles = []
 	self.twist = None
@@ -96,6 +101,19 @@ class ObstacleAvoidanceNode(object):
 	n = np.linalg.norm(v)
 	if n > 0:   # if velocity is nonzero
 	    for obs in self.obstacles:
+	    	# map the obstacle to the base frame
+		if obs.header.frame_id != self.base_frame:
+		    pointStamped = geometry_msgs.msg.PointStamped()
+		    pointStamped.header = obs.header
+		    pointStamped.point.x = obs.range * obs.dx
+		    pointStamped.point.y = obs.range * obs.dy
+		    pointStamped.point.z = obs.range * obs.dz
+		    p = self.tf_listener.transformPoint(self.base_frame, pointStamped)
+		    obs.header.frame_id = self.base_frame
+		    obs.dx = p.point.x
+		    obs.dy = p.point.y
+		    obs.dz = p.point.z
+
 	    	ov = obs_vec_xy(obs)
 		p = np.dot(v, ov)  			# calculate projection on obstacle vector
 		if (p > 0):				# if a component of velocity is going toward the sensor
