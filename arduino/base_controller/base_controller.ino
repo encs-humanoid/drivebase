@@ -72,7 +72,9 @@ int nextLoopInterval = 0;
  * Ultrasonic sensor routines
  *******************************************************************/
 
-int getDistance(int trigPin, int echoPin)
+const double uSecToMeters = (0.0343 / 200.0);
+
+double getDistance(int trigPin, int echoPin)
 {
   // Clears the trigger pin
   digitalWrite(trigPin, LOW);
@@ -84,10 +86,12 @@ int getDistance(int trigPin, int echoPin)
   digitalWrite(trigPin, LOW);
   
   // Reads the round trip time for the echo time microseconds
-  long duration = pulseIn(echoPin, HIGH, 10000);
+  //   Max of 25,000 usec is 27.5' round trip, which exceeds the
+  //   max distance of the sensor of 4 meters
+  long duration = pulseIn(echoPin, HIGH, 25000);
   
   // Convert the round trip echo time to distance in centimeters
-  int distance = duration*0.034/2;
+  double distance = duration * uSecToMeters;
   return distance;
 }
 
@@ -215,7 +219,7 @@ int drive_mmps=0, strafe_mmps=0, theta_mrps=0;
  */
 void on_twist(const geometry_msgs::Twist& twist_msg)
 {
-   // Map incomin meters per second and radians per second to
+   // Map incoming meters per second and radians per second to
    //    millimeters per second and milli-radians per second so 
    //    can perform the PID calculations as integral and not float
    drive_mmps  = (int) (1000.0 * twist_msg.linear.y);
@@ -361,10 +365,21 @@ void encoderSpeed_mmps(int *fl, int *fr, int *bl, int *br)
     *fr = encoderTicksToMM(quadValues[3]);  
 }
 
+// Calculates the time between to unsigned long time values, handling overflow
+signed long timeDelta(unsigned long startTime, unsigned long endTime) {
+   signed long delta;
+
+   delta = (signed long) (endTime - startTime);
+   return delta;
+}
+
 
 /*******************************************************************
  * Setup function - called once at start of program
  *******************************************************************/
+
+unsigned long nextDriveTime = 0;
+#define DRIVE_PERIOD_MS  100
 
 // Structure and callback for ultrasound sensor ROS publication
 char frameid[32];
@@ -390,7 +405,6 @@ void setup()
 
   // Register the ROS node handle callbacks 
   nh.advertise(range_pub);
-//  nh.advertise(quad_pub);
   nh.subscribe(twist_sub);
 
   nh.advertise(chatter1);
@@ -419,9 +433,11 @@ void setup()
     pinMode(echoPins[i], INPUT);
   }
 
-//  r = rospy.rate(20);
+   // Initialize our next drive time, updated on each loop()
+   nextDriveTime = millis() + DRIVE_PERIOD_MS;
 }
 
+int timeOverflow = 0;
 
 /*******************************************************************
  * Loop function - called continuously while the Arduino is on
@@ -429,25 +445,21 @@ void setup()
 
 void loop()
 {
-//  r.sleep();
   
-  // Read just one distance sensor now
-  int distance = getDistance(trigPins[currentSensor], echoPins[currentSensor]);
-
-  // Convert distance to meters and update the rangeData data
-  rangeData.range = distance / 100.0f;  // convert cm to meters
+  // Fill in the range data for our current sensor
+  rangeData.range = getDistance(trigPins[currentSensor], echoPins[currentSensor]);
   rangeData.header.stamp = nh.now();
-  sprintf(frameid, "/ultrasound_%d", currentSensor + 1);
   rangeData.header.frame_id = frameid;
-
-  // Advance forward to get ready for the next sensor read
-  currentSensor = (currentSensor+1) % NUM_ULTRASONICS;     
+  sprintf(frameid, "/ultrasound_%d", currentSensor + 1);
 
   // Publish the updated ultrasonic distance values
   range_pub.publish(&rangeData);
 
-  msg1.data = drive_mmps;
-  msg2.data = strafe_mmps;
+  // Advance forward to get ready for the next sensor read
+  currentSensor = (currentSensor+1) % NUM_ULTRASONICS;     
+
+  msg1.data = timeOverflow;
+  msg2.data = 0;
   chatter1.publish(&msg1);
   chatter2.publish(&msg2);
         
@@ -457,8 +469,18 @@ void loop()
   //   actions that consume the data (like adjust motor speed) after spinonce
   nh.spinOnce();
 
+  // Are we close to overflowing our time slot?
+  if (timeDelta(millis(), nextDriveTime) < 5) {
+     timeOverflow++;
+  }
+
+  // Spin and wait here to handle varying times in the top of loop() code so
+  //    that we always hit the MecanumDrive() code at a regular rate (as 
+  //    required for the PID algorithm)
+//  while (timeDelta(millis(), nextDriveTime) > 0);
+  delay(30);
+  nextDriveTime = millis() + DRIVE_PERIOD_MS;
+  
   // Now that the callbacks have been called, we can update the drive motors
   MecanumDrive(drive_mmps,strafe_mmps,theta_mrps);
-  
-  delay(30);
 }
