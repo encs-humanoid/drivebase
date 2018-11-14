@@ -55,6 +55,12 @@ def interpolate_points(points, points_per_edge):
     return new_points
 
 
+def find_closest_point_on_boundary(obs, boundary):
+    b = np.array([obs.dx, obs.dy])	# obstacle position
+    r_index = np.argmin([np.linalg.norm(b - r) for r in boundary])
+    return r_index
+
+
 def normalize(v):
     norm = np.linalg.norm(v)
     if norm == 0:
@@ -77,6 +83,8 @@ class ObstacleAvoidanceNode(object):
 	control_topic = self.get_param("~control", "/control")
 	self.window = float(self.get_param("~window", "0.5")) # seconds
 	self.base_frame = self.get_param("~base_frame", "base_link")
+	# number of points to interpolate between corners of the robot boundary
+	self.interpolate_points = int(self.get_param("~interpolate_points", "2"))
 
 	# Initialize the tf listener
 	self.tf_listener = tf.TransformListener()
@@ -100,7 +108,7 @@ class ObstacleAvoidanceNode(object):
 	self.boundary.append(( 0.725/2,  1.030/2 - 0.095))	# front right
 	self.boundary.append(( 0.000  ,  1.030/2 + 0.095))	# front middle
 	self.boundary.append((-0.745/2,  1.030/2 - 0.095))	# front left
-	self.boundary = interpolate_points(self.boundary, 8)
+	self.boundary = interpolate_points(self.boundary, self.interpolate_points)
 
 	self.pub = rospy.Publisher(out_topic, geometry_msgs.msg.Twist, queue_size=50)
 	cmd_sub = rospy.Subscriber(cmd_topic, geometry_msgs.msg.Twist, self.on_twist)
@@ -153,9 +161,8 @@ class ObstacleAvoidanceNode(object):
 		    obs.dz = p.point.z
 
 		# find closest point on robot
-		#b = np.array([obs.dx, obs.dy])	# obstacle position
-		#r_index = np.argmin([np.linalg.norm(b - r) for r in self.boundary])
-		#r = self.boundary[r_index]	# closest point on robot boundary
+		r_index = find_closest_point_on_boundary(obs, self.boundary)
+		#r = self.boundary[r_index]		# closest point on robot boundary
 	    	ov = obs_vec_xy(obs)
 		p = np.dot(v, ov)  			# calculate projection on obstacle vector
 		if (p > 0):				# if a component of velocity is going toward the sensor
