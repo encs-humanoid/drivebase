@@ -56,6 +56,7 @@ def interpolate_points(points, points_per_edge):
 
 
 def find_closest_point_on_boundary(obs, boundary):
+    # TODO convert this to 3D geometry
     b = np.array([obs.dx, obs.dy])	# obstacle position
     r_index = np.argmin([np.linalg.norm(b - r) for r in boundary])
     return r_index
@@ -68,8 +69,12 @@ def normalize(v):
     return v / norm
 
 
-def obs_vec_xy(obs):
-    return normalize(np.array([obs.dx, obs.dy]))
+def obs_vec_xy(obs, r):
+    """
+    Return the vector from the closest point on the robot boundary r to the obstacle obs.
+    """
+    # TODO convert this to 3D geometry
+    return normalize(np.array([obs.dx - r[0], obs.dy - r[1]]))
 
 
 class ObstacleAvoidanceNode(object):
@@ -162,8 +167,8 @@ class ObstacleAvoidanceNode(object):
 
 		# find closest point on robot
 		r_index = find_closest_point_on_boundary(obs, self.boundary)
-		#r = self.boundary[r_index]		# closest point on robot boundary
-	    	ov = obs_vec_xy(obs)
+		r = self.boundary[r_index]		# closest point on robot boundary
+	    	ov = obs_vec_xy(obs, r)
 		p = np.dot(v, ov)  			# calculate projection on obstacle vector
 		if (p > 0):				# if a component of velocity is going toward the sensor
 		    scale = self.compute_scale(obs.range)
