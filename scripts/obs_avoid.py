@@ -28,9 +28,9 @@ import sys
 import tf
 
 
-FAST_THRESHOLD = 0.5  # 1 meter
-SLOW_THRESHOLD = 0.2  # 40 cm
-STOP_THRESHOLD = 0.10 # 15 cm
+FAST_THRESHOLD = 0.50 # 1/2 meter
+SLOW_THRESHOLD = 0.20 # 20 cm
+STOP_THRESHOLD = 0.10 # 10 cm
 SLOW_FACTOR = 0.4
 
 
@@ -55,11 +55,14 @@ def interpolate_points(points, points_per_edge):
     return new_points
 
 
-def find_closest_point_on_boundary(obs, boundary):
+def find_closest_point_on_boundary(point_stamped, boundary):
+    """
+    Return the vector from the closest point on the robot boundary r to the obstacle located at point_stamped.
+    """
     # TODO convert this to 3D geometry
-    b = np.array([obs.dx, obs.dy])	# obstacle position
+    b = np.array([point_stamped.point.x, point_stamped.point.y])	# obstacle position
     r_index = np.argmin([np.linalg.norm(b - r) for r in boundary])
-    return r_index
+    return boundary[r_index], r_index
 
 
 def normalize(v):
@@ -69,12 +72,49 @@ def normalize(v):
     return v / norm
 
 
-def obs_vec_xy(obs, r):
-    """
-    Return the vector from the closest point on the robot boundary r to the obstacle obs.
-    """
+def obs_vec_xy(p, r):
     # TODO convert this to 3D geometry
-    return normalize(np.array([obs.dx - r[0], obs.dy - r[1]]))
+    return normalize(np.array([p.point.x - r[0], p.point.y - r[1]]))
+
+
+def find_closest_direction_to_obstacle(point_stamped, boundary):
+    r, r_index = find_closest_point_on_boundary(point_stamped, boundary)
+    ov = obs_vec_xy(point_stamped, r)
+    return ov, r, r_index
+
+
+def compute_scale(range):
+    global FAST_THRESHOLD, SLOW_THRESHOLD, STOP_THRESHOLD, SLOW_FACTOR
+    scale = 1.0
+    if range < STOP_THRESHOLD:
+	scale = 0.0
+    elif range < SLOW_THRESHOLD:
+	scale = SLOW_FACTOR * (range - STOP_THRESHOLD) / (SLOW_THRESHOLD - STOP_THRESHOLD)
+    elif range < FAST_THRESHOLD:
+	scale = SLOW_FACTOR + (1 - SLOW_FACTOR) * (range - SLOW_THRESHOLD) / (FAST_THRESHOLD - SLOW_THRESHOLD)
+    return scale
+
+
+def calculate_velocity_adjustment(v, obs, boundary):
+    dv = [0, 0]  # TODO convert this to 3D geometry
+    dw = 0
+
+    # find direction to obstacle from closest point on robot
+    ov, r, _ = find_closest_direction_to_obstacle(obs, boundary)
+
+    p = np.dot(v, ov)  			# calculate projection on obstacle vector
+    if (p > 0):				# if a component of velocity is going toward the obstacle
+    	# TODO convert this to 3D geometry
+    	distance_to_obs = np.linalg.norm(np.array([obs.point.x, obs.point.y]) - np.array(r))
+	scale = compute_scale(distance_to_obs)
+	dv = -(1.0 - scale) * p * ov		# subtract a scaled amount depending on the range
+    #    if abs(r[0]) > 1.0e-5:		# rx != 0
+    #	w -= (1.0 - scale) * w * ((r[0] * ov[1] - r[1] * ov[0]) * ov[1]) / r[0]
+    #	print('rx: w=' + str(w))
+    #    elif abs(r[1]) > 1.0e-5:		# ry != 0
+    #	w += (1.0 - scale) * w * ((r[0] * ov[1] - r[1] * ov[0]) * ov[0]) / r[1]
+    #	print('ry: w=' + str(w))
+    return dv, dw
 
 
 class ObstacleAvoidanceNode(object):
@@ -94,7 +134,7 @@ class ObstacleAvoidanceNode(object):
 	# Initialize the tf listener
 	self.tf_listener = tf.TransformListener()
 
-	self.obstacles = []
+	self.obstacles = []  # list of PointStamped
 	self.twist = None
 	self.scale = 1.0
 	self.joy_override = False
@@ -154,31 +194,18 @@ class ObstacleAvoidanceNode(object):
 	    for obs in self.obstacles:
 	    	# map the obstacle to the base frame
 		if obs.header.frame_id != self.base_frame:
-		    pointStamped = geometry_msgs.msg.PointStamped()
-		    pointStamped.header = obs.header
-		    pointStamped.point.x = obs.range * obs.dx
-		    pointStamped.point.y = obs.range * obs.dy
-		    pointStamped.point.z = obs.range * obs.dz
-		    p = self.tf_listener.transformPoint(self.base_frame, pointStamped)
+		    point_stamped = geometry_msgs.msg.PointStamped()
+		    point_stamped.header = obs.header
+		    point_stamped.point.x = obs.range * obs.dx
+		    point_stamped.point.y = obs.range * obs.dy
+		    point_stamped.point.z = obs.range * obs.dz
+		    p = self.tf_listener.transformPoint(self.base_frame, obs)
 		    obs.header.frame_id = self.base_frame
-		    obs.dx = p.point.x
-		    obs.dy = p.point.y
-		    obs.dz = p.point.z
+		    obs.point = p.point
 
-		# find closest point on robot
-		r_index = find_closest_point_on_boundary(obs, self.boundary)
-		r = self.boundary[r_index]		# closest point on robot boundary
-	    	ov = obs_vec_xy(obs, r)
-		p = np.dot(v, ov)  			# calculate projection on obstacle vector
-		if (p > 0):				# if a component of velocity is going toward the sensor
-		    scale = self.compute_scale(obs.range)
-		    v -= (1.0 - scale) * p * ov		# subtract a scaled amount depending on the range
-		#    if abs(r[0]) > 1.0e-5:		# rx != 0
-		#	w -= (1.0 - scale) * w * ((r[0] * ov[1] - r[1] * ov[0]) * ov[1]) / r[0]
-		#	print('rx: w=' + str(w))
-		#    elif abs(r[1]) > 1.0e-5:		# ry != 0
-		#	w += (1.0 - scale) * w * ((r[0] * ov[1] - r[1] * ov[0]) * ov[0]) / r[1]
-		#	print('ry: w=' + str(w))
+		dv, dw = calculate_velocity_adjustment(v, obs, self.boundary)
+		v += dv
+		w += dw
 
 	adj_twist = geometry_msgs.msg.Twist()
 	adj_twist.linear = geometry_msgs.msg.Vector3()
@@ -192,25 +219,15 @@ class ObstacleAvoidanceNode(object):
 	return adj_twist
 
 
-    def compute_scale(self, range):
-    	global FAST_THRESHOLD, SLOW_THRESHOLD, STOP_THRESHOLD, SLOW_FACTOR
-	scale = 1.0
-	if range < STOP_THRESHOLD:
-	    scale = 0.0
-	elif range < SLOW_THRESHOLD:
-	    scale = SLOW_FACTOR * (range - STOP_THRESHOLD) / (SLOW_THRESHOLD - STOP_THRESHOLD)
-	elif range < FAST_THRESHOLD:
-	    scale = SLOW_FACTOR + (1 - SLOW_FACTOR) * (range - SLOW_THRESHOLD) / (FAST_THRESHOLD - SLOW_THRESHOLD)
-	return scale
-
-
     def on_obstacle(self, obs):
-    	# purge old messages
-    	keep = [obs]
-	for o in self.obstacles:
-	    if rospy.get_time() - o.header.stamp.to_sec() < self.window:
-	    	keep.append(o)
-	self.obstacles = keep
+    	# convert Obstacle (dir + range) to PointStamped (x, y, z)
+	p = geometry_msgs.msg.PointStamped()
+	p.header = obs.header
+	p.point.x = obs.range * obs.dx
+	p.point.y = obs.range * obs.dy
+	p.point.z = obs.range * obs.dz
+	# rebuild the obstacles list to purge expired obstacles
+	self.obstacles = [o for o in [p] + self.obstacles if rospy.get_time() - o.header.stamp.to_sec() < self.window]
 
 
     def on_control(self, msg):
