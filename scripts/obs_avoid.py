@@ -42,10 +42,10 @@ def interpolate_points(points, points_per_edge):
     """
     new_points = []
     if len(points) > 0:
-    	new_points.append(points[0])
+    	new_points.append(np.array(points[0], dtype=np.float64))
 	for i in xrange(len(points) - 1):
-	    p1 = np.array(points[i])
-	    p2 = np.array(points[i + 1])
+	    p1 = np.array(points[i], dtype=np.float64)
+	    p2 = np.array(points[i + 1], dtype=np.float64)
 	    for j in xrange(points_per_edge):
 		interval = 1.0 / (points_per_edge + 1)
 		p = p1 + ((j + 1) * interval) * (p2 - p1)
@@ -62,7 +62,7 @@ def find_closest_point_on_boundary(point_stamped, boundary):
     # TODO convert this to 3D geometry
     b = np.array([point_stamped.point.x, point_stamped.point.y])	# obstacle position
     r_index = np.argmin([np.linalg.norm(b - r) for r in boundary])
-    return boundary[r_index], r_index
+    return np.array(boundary[r_index], copy=True), r_index
 
 
 def normalize(v):
@@ -95,25 +95,36 @@ def compute_scale(range):
     return scale
 
 
-def calculate_velocity_adjustment(v, obs, boundary):
+def calculate_velocity_adjustment(v, w, obs, boundary, center_of_rotation):
     dv = [0, 0]  # TODO convert this to 3D geometry
     dw = 0
+    cor = np.array(center_of_rotation)
 
     # find direction to obstacle from closest point on robot
     ov, r, _ = find_closest_direction_to_obstacle(obs, boundary)
 
+    # TODO convert this to 3D geometry
+    distance_to_obs = np.linalg.norm(np.array([obs.point.x, obs.point.y]) - np.array(r))
+    scale = compute_scale(distance_to_obs)
+    #print('scale =', scale)
+
     p = np.dot(v, ov)  			# calculate projection on obstacle vector
+    #print('p =', p)
     if (p > 0):				# if a component of velocity is going toward the obstacle
-    	# TODO convert this to 3D geometry
-    	distance_to_obs = np.linalg.norm(np.array([obs.point.x, obs.point.y]) - np.array(r))
-	scale = compute_scale(distance_to_obs)
 	dv = -(1.0 - scale) * p * ov		# subtract a scaled amount depending on the range
-    #    if abs(r[0]) > 1.0e-5:		# rx != 0
-    #	w -= (1.0 - scale) * w * ((r[0] * ov[1] - r[1] * ov[0]) * ov[1]) / r[0]
-    #	print('rx: w=' + str(w))
-    #    elif abs(r[1]) > 1.0e-5:		# ry != 0
-    #	w += (1.0 - scale) * w * ((r[0] * ov[1] - r[1] * ov[0]) * ov[0]) / r[1]
-    #	print('ry: w=' + str(w))
+	#print('dv =', dv)
+
+    r -= cor				# offset boundary point by center of rotation
+    vw = np.array([-w * r[1], w * r[0]]) # add the rotational component of velocity
+    pw = np.dot(vw, ov)
+    #print('pw =', pw)
+    if (pw > 0):
+        if abs(r[0]) > 1.0e-5:		# rx != 0
+	    dw = -(1.0 - scale) * w * ((r[0] * ov[1] - r[1] * ov[0]) * ov[1]) / r[0]
+	    #print('rx: dw=' + str(dw))
+        elif abs(r[1]) > 1.0e-5:	# ry != 0
+	    dw = (1.0 - scale) * w * ((r[0] * ov[1] - r[1] * ov[0]) * ov[0]) / r[1]
+	    #print('ry: dw=' + str(dw))
     return dv, dw
 
 
@@ -154,6 +165,8 @@ class ObstacleAvoidanceNode(object):
 	self.boundary.append(( 0.000  ,  1.030/2 + 0.095))	# front middle
 	self.boundary.append((-0.745/2,  1.030/2 - 0.095))	# front left
 	self.boundary = interpolate_points(self.boundary, self.interpolate_points)
+
+	self.center_of_rotation = (0.0, 0.0)
 
 	self.pub = rospy.Publisher(out_topic, geometry_msgs.msg.Twist, queue_size=50)
 	cmd_sub = rospy.Subscriber(cmd_topic, geometry_msgs.msg.Twist, self.on_twist)
@@ -203,7 +216,7 @@ class ObstacleAvoidanceNode(object):
 		    obs.header.frame_id = self.base_frame
 		    obs.point = p.point
 
-		dv, dw = calculate_velocity_adjustment(v, obs, self.boundary)
+		dv, dw = calculate_velocity_adjustment(v, w, obs, self.boundary, self.center_of_rotation)
 		v += dv
 		w += dw
 
