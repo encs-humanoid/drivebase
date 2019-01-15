@@ -105,7 +105,15 @@
     <material name="white"/>
   </visual>
 </link>
-
+<link name="camera_link">
+  <visual>
+    <origin xyz="0.03 0 0" rpy="0 0 0" />
+    <geometry>
+      <box size="0.06 0.28 0.035" />
+    </geometry>
+    <material name="black"/>
+  </visual>
+</link>
 <joint name="joint0" type="fixed">
   <parent link="base_link"/>
   <child link="imu"/>
@@ -159,5 +167,12 @@
   <child link="ultrasound_6"/>
   <origin xyz="-0.32 0.145 0.04" rpy="0 0 1.571"/>
 </joint>
+
+<joint name="joint14" type="fixed">
+  <parent link="platform"/>
+  <child link="camera_link"/>
+  <origin xyz="0 0.18 0.585" rpy="0 0 1.571"/>
+</joint>
+
 
 </robot>
