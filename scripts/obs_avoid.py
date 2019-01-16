@@ -207,11 +207,6 @@ class ObstacleAvoidanceNode(object):
 	    for obs in self.obstacles:
 	    	# map the obstacle to the base frame
 		if obs.header.frame_id != self.base_frame:
-		    point_stamped = geometry_msgs.msg.PointStamped()
-		    point_stamped.header = obs.header
-		    point_stamped.point.x = obs.range * obs.dx
-		    point_stamped.point.y = obs.range * obs.dy
-		    point_stamped.point.z = obs.range * obs.dz
 		    p = self.tf_listener.transformPoint(self.base_frame, obs)
 		    obs.header.frame_id = self.base_frame
 		    obs.point = p.point
