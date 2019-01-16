@@ -33,8 +33,8 @@ def normalize(v):
     return v / norm
 
 
-def obs_vec_xy(obs):
-    return normalize(np.array([obs.dx, obs.dy]))
+def obs_vec_xyz(obs):
+    return normalize(np.array([obs.dx, obs.dy, obs.dz]))
 
 
 class ObstacleMarkerNode(object):
@@ -95,13 +95,13 @@ class ObstacleMarkerNode(object):
 
 	    # Add obstacle positions
 	    for obs in self.obstacles:
-		ov = self.range_mult * obs_vec_xy(obs)
+		ov = self.range_mult * obs_vec_xyz(obs)
 
 		pointStamped = geometry_msgs.msg.PointStamped()
 		pointStamped.header = obs.header
 		pointStamped.point.x = obs.range * ov[0]
 		pointStamped.point.y = obs.range * ov[1]
-		pointStamped.point.z = obs.dz  # TODO convert to proper 3D obstacle positions
+		pointStamped.point.z = obs.range * ov[2]
 		p = self.tf_listener.transformPoint(self.fixed_frame, pointStamped)
 
 	    	position = geometry_msgs.msg.Point()
