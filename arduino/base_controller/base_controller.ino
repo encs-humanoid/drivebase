@@ -25,12 +25,11 @@
 #include <sensor_msgs/Range.h>
 #include <std_msgs/Float32.h>
 #include <Servo.h>
+#include <FastPID.h>
 #include <MsTimer2.h>
 
+// Set to 1 to enable PID control of motors - still under development
 #define PID_ENABLED   0
-#if PID_ENABLED
-#include <FastPID.h>
-#endif
 
 // Global ROS node handle
 ros::NodeHandle nh;
@@ -135,7 +134,6 @@ Servo   backLeft;     // Motor 2
 Servo   backRight;    // Motor 3
 Servo   frontLeft;    // Motor 4
 
-#if PID_ENABLED
 #define PID_KP      0.3
 #define PID_KI      0.0
 #define PID_KD      0.0
@@ -146,7 +144,6 @@ FastPID frPID(PID_KP, PID_KI, PID_KD, PID_HZ, PID_NBITS, true);
 FastPID blPID(PID_KP, PID_KI, PID_KD, PID_HZ, PID_NBITS, true);
 FastPID brPID(PID_KP, PID_KI, PID_KD, PID_HZ, PID_NBITS, true);
 FastPID flPID(PID_KP, PID_KI, PID_KD, PID_HZ, PID_NBITS, true);
-#endif
 
 /*******************************************************************
  * Motor control subroutines
@@ -194,8 +191,9 @@ void MotorDrive(int fl, int fr, int bl, int br)
   int fl2, fr2, bl2, br2;
   
 #if PID_ENABLED
-  // RER- this is NOT correct as MotorMapSpeed has converted our nice mms
-  //      value into a RC pulse signal and that needs to be removed
+  // RER- this is NOT correct as the value we get from the PID controller is in mms
+  //     which does not map into our PWM control as we do NOT know the correlation 
+  //     of RC speed value to the motor controller and the mms speed
   int fl_enc, fr_enc, bl_enc, br_enc;
   encoderSpeed_mmps(&fl_enc, &fr_enc, &bl_enc, &br_enc);
   
@@ -428,13 +426,11 @@ void setup()
   // Initialize the motor controllers and stopped motor speed
   MotorSetup();
 
-#if PID_ENABLED
   // Verify no issue with the PID setup (what do we do if an error?)
   if (frPID.err() || blPID.err() || brPID.err() || flPID.err()) {
      Serial.print("FASTPID configuration error - halting!\n");
      for(;;);     
   }  
-#endif
 
   // Initialize the range message (used by range_pub callback)
   rangeData.radiation_type = sensor_msgs::Range::ULTRASOUND;
