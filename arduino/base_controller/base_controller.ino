@@ -7,13 +7,11 @@
  *      > open loop control of motor speed
  *      > read and publish the motor quadrature sensors 
  *      > read and publish the ultrasonic sensor data
- *      > controls the base neopixel lights
  *      
  *  Next steps for this code:     
  *      > add PID control of motor speed
  *      > read and publish 9-DOF IMU data
  *      > add PID control of base space and orientation
- *      > add dynamic neopixel lighting based on obstacle data
  *      
  *  Authors:
  *    Daniel McDonald (2017-2018)
@@ -27,6 +25,7 @@
 #include <sensor_msgs/Range.h>
 #include <std_msgs/Float32.h>
 #include <Servo.h>
+#include <MsTimer2.h>
 
 #define PID_ENABLED   0
 #if PID_ENABLED
@@ -55,18 +54,31 @@ static const int echoPin5 = 29 ; //(D11) Right Front Corner ultrasonic sensor 5
 static const int trigPin6 = 30 ; //(D12) Left Front Corner ultrasonic sensor 6
 static const int echoPin6 = 31 ; //(D13) Left Front Corner ultrasonic sensor 6
 
+//static const int trigPin7 = null ; //(D) Back Right Side ultrasonic sensor 7
+//static const int echoPin7 = null ; //(D) Back Right Side ultrasonic sensor 7
+//static const int trigPin8 = null ; //(D) Back Left Side ultrasonic sensor 8
+//static const int echoPin8 = null ; //(D) Back Left Side ultrasonic sensor 8
+//
+//static const int trigPin9 = null ; //(D) Right Back Corner ultrasonic sensor 9
+//static const int echoPin9 = null ; //(D) Right Back Corner ultrasonic sensor 9
+//static const int trigPin10 = null ; //(D) Left Back Corner ultrasonic sensor 10
+//static const int echoPin10 = null ; //(D) Left Back Corner ultrasonic sensor 10
+//
+//static const int trigPin11 = null ; //(D) Right Back ultrasonic sensor 11
+//static const int echoPin11 = null ; //(D) Right Back ultrasonic sensor 11
+//static const int trigPin12 = null ; //(D) Left Back ultrasonic sensor 12
+//static const int echoPin12 = null ; //(D) Left Back ultrasonic sensor 12
+
 #define NUM_ULTRASONICS  6
 static const int trigPins[] = { trigPin1, trigPin2, trigPin3, trigPin4, trigPin5, trigPin6 };
 static const int echoPins[] = { echoPin1, echoPin2, echoPin3, echoPin4, echoPin5, echoPin6 };
 
+//#define NUM_ULTRASONICS 12
+//static const int trigPins[] = { trigPin1, trigPin2, trigPin3, trigPin4, trigPin5, trigPin6, trigPin7, trigPin8, trigPin9, trigPin10, trigPin11, trigPin12 };
+//static const int echoPins[] = { echoPin1, echoPin2, echoPin3, echoPin4, echoPin5, echoPin6, echoPin7, echoPin8, echoPin9, echoPin10, echoPin11, echoPin12 };
+
 // current ultrasonic sensor to read (advance forward once on each read)
 int currentSensor = 0;
-
-// How often to run the loop - this time should be longer than
-//   the time to read one ultrasonic sensor and process the ros callbacks
-//   and publications
-#define LOOP_INTERVAL_TIME   50 // 20ms for ultrasonic read
-int nextLoopInterval = 0;
 
 /*******************************************************************
  * Ultrasonic sensor routines
@@ -174,21 +186,16 @@ static int MotorMapSpeed(int in)
  * Note that the forward/reverse is as respect to the motor, and not it's
  *    orientation within the chassis - for example, those on the left and 
  *    those on the right have a different view of forward/reverse. 
+ *
+ * This code runs at a 10Hz rate as needed by the PID routines.
  */
 void MotorDrive(int fl, int fr, int bl, int br)
 {
-  int fr2 = MotorMapSpeed(-fr);
-  int bl2 = MotorMapSpeed(bl);
-  int br2 = MotorMapSpeed(-br);
-  int fl2 = MotorMapSpeed(fl);
-
-//  nh.loginfo("MotorDrive");
-
+  int fl2, fr2, bl2, br2;
+  
 #if PID_ENABLED
   // RER- this is NOT correct as MotorMapSpeed has converted our nice mms
   //      value into a RC pulse signal and that needs to be removed
-  //      In addition, we are assuming a PID rate of 10Hz, but we are not
-  //      doing anything yet to verify/force that.
   int fl_enc, fr_enc, bl_enc, br_enc;
   encoderSpeed_mmps(&fl_enc, &fr_enc, &bl_enc, &br_enc);
   
@@ -196,6 +203,11 @@ void MotorDrive(int fl, int fr, int bl, int br)
   bl2 = frPID.step(fr, bl_enc);
   br2 = frPID.step(fr, br_enc);
   fl2 = frPID.step(fr, fl_enc);  
+#else
+  fr2 = MotorMapSpeed(-fr);
+  bl2 = MotorMapSpeed(bl);
+  br2 = MotorMapSpeed(-br);
+  fl2 = MotorMapSpeed(fl);
 #endif
   
   frontRight.write(fr2);
@@ -374,12 +386,15 @@ signed long timeDelta(unsigned long startTime, unsigned long endTime) {
 }
 
 
+static void PIDtimerIRQ() {
+  // Now that the callbacks have been called, we can update the drive motors
+  MecanumDrive(drive_mmps,strafe_mmps,theta_mrps);
+}
+
+
 /*******************************************************************
  * Setup function - called once at start of program
  *******************************************************************/
-
-unsigned long nextDriveTime = 0;
-#define DRIVE_PERIOD_MS  100
 
 // Structure and callback for ultrasound sensor ROS publication
 char frameid[32];
@@ -433,11 +448,11 @@ void setup()
     pinMode(echoPins[i], INPUT);
   }
 
-   // Initialize our next drive time, updated on each loop()
-   nextDriveTime = millis() + DRIVE_PERIOD_MS;
+  // Background task to run the motor PID controls (10hz rate, so every 100ms)
+  MsTimer2::set(100, PIDtimerIRQ);
+  MsTimer2::start();
 }
 
-int timeOverflow = 0;
 
 /*******************************************************************
  * Loop function - called continuously while the Arduino is on
@@ -458,29 +473,16 @@ void loop()
   // Advance forward to get ready for the next sensor read
   currentSensor = (currentSensor+1) % NUM_ULTRASONICS;     
 
-  msg1.data = timeOverflow;
+#if 0
+  msg1.data = 0;
   msg2.data = 0;
   chatter1.publish(&msg1);
   chatter2.publish(&msg2);
+#endif
         
   // spinonce gives permission for ROS to invoke our callbacks since 
   //   we do not have preemptive tasking so we need to fill in any data
   //   that is a publish (like range_pub) before spinonce, and do any
   //   actions that consume the data (like adjust motor speed) after spinonce
   nh.spinOnce();
-
-  // Are we close to overflowing our time slot?
-  if (timeDelta(millis(), nextDriveTime) < 5) {
-     timeOverflow++;
-  }
-
-  // Spin and wait here to handle varying times in the top of loop() code so
-  //    that we always hit the MecanumDrive() code at a regular rate (as 
-  //    required for the PID algorithm)
-//  while (timeDelta(millis(), nextDriveTime) > 0);
-  delay(30);
-  nextDriveTime = millis() + DRIVE_PERIOD_MS;
-  
-  // Now that the callbacks have been called, we can update the drive motors
-  MecanumDrive(drive_mmps,strafe_mmps,theta_mrps);
 }
