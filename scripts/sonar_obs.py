@@ -49,7 +49,7 @@ class SonarObstacleNode(object):
     def on_range(self, range):
 	frame_id = range.header.frame_id
 	index = int(frame_id.split("_")[-1]) - 1
-	if range.range > 0:
+	if range.range > 0 and range.range <= 0.40:
 	    obs = drivebase.msg.Obstacle()
 	    obs.header = range.header
 	    obs.dx = 0
