@@ -1,0 +1,7 @@
+<launch>
+        <node name="light_node" pkg="rosserial_python" type="serial_node.py" args="/dev/ttyUSB0">
+		<param name="baud" value="57600"/>
+	</node>
+	<node name="sonar_10hz" pkg="drivebase" type="sonar_10hz.py"/>
+</launch>
+

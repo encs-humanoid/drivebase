@@ -438,7 +438,7 @@ void setup()
   rangeData.min_range = 0.0;
   rangeData.max_range = 6.47;
   
-  // Set up the ultrasonic pins - ouput for trigger, input for echo
+  // Set up the ultrasonic pins - output for trigger, input for echo
   for (int i = 0; i < NUM_ULTRASONICS; i++) {
     pinMode(trigPins[i], OUTPUT);
     pinMode(echoPins[i], INPUT);
@@ -467,7 +467,7 @@ void loop()
   range_pub.publish(&rangeData);
 
   // Advance forward to get ready for the next sensor read
-  currentSensor = (currentSensor+1) % NUM_ULTRASONICS;     
+  currentSensor = (currentSensor+1) % NUM_ULTRASONICS;
 
 #if 0
   msg1.data = 0;
