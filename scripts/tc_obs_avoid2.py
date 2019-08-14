@@ -4,6 +4,7 @@ import geometry_msgs.msg
 import std_msgs.msg
 import numpy as np
 import obs_avoid2
+import obs_avoid
 
 
 
@@ -39,7 +40,7 @@ class TestObstacleAvoidance(unittest.TestCase):
 
 
 
-    def test_should_stop_if_obs_in_front(self):
+    def test_vel_adj(self, newx, newy, expdv):
     	
 	# center of robot is 0.5, 0.5
 	# set velocity
@@ -49,19 +50,72 @@ class TestObstacleAvoidance(unittest.TestCase):
 
 	w = 0
 	v = np.array((0.0, 1.0))  # 1 m/s velocity in Y direction
+	self.obs.point.x = newx
+	self.obs.point.y = newy
+	dv, dw = obs_avoid2.calculate_velocity_adjustment(v, w, self.obs, self.boundary, self.center_of_rotation)
+        self.assertEquals("[ 0. expdv]", str(dv))
+
+        slow = obs_avoid.SLOW_THRESHOLD
+	fast = obs_avoid.FAST_THRESHOLD
+	stop = obs_avoid.STOP_THRESHOLD
+	obs_pos = [0., stop/2, stop, slow/2, slow, fast/2, fast, fast+0.5]
+	exp_dv =  [-1, -1, -1, -0.8, -0.6, -0.3, 0, 0]
+	self.assertEquals(str(exp_dv), str(dv))
+	
+	
+	/*
+	w = 0
+	v = np.array((0.0, 1.0))  # 1 m/s velocity in Y direction
 	self.obs.point.x = 0.5
 	self.obs.point.y = 1
 	dv, dw = obs_avoid2.calculate_velocity_adjustment(v, w, self.obs, self.boundary, self.center_of_rotation)
         self.assertEquals("[ 0. -1.]", str(dv))
-
+        */
        
-	# change obstacle - move it farther
+    def test_should_stop_if_obs_in_front1(self):
+	# change obstacle - move it farther out by 1 meter
+	w = 0
+	v = np.array((0.0, 1.0))  # 1 m/s velocity in Y direction
 	self.obs.point.x = 0.5
 	self.obs.point.y = 2
 	dv, dw = obs_avoid2.calculate_velocity_adjustment(v, w, self.obs, self.boundary, self.center_of_rotation)
-        self.assertEquals("[ 0. -1.]", str(dv))
+        self.assertEquals("[ 0. 0.]", str(dv))
 
+    def test_should_stop_if_obs_in_front2(self):
+	# change obstacle - move it farther out by 2 meters
+	w = 0
+	v = np.array((0.0, 1.0))  # 1 m/s velocity in Y direction
+	self.obs.point.x = 0.5
+	self.obs.point.y = 3
+	dv, dw = obs_avoid2.calculate_velocity_adjustment(v, w, self.obs, self.boundary, self.center_of_rotation)
+        self.assertEquals("[ 0. 0.]", str(dv))
 
+    def test_should_stop_if_obs_in_front05(self):
+	# change obstacle - move it closer to 0.5 meter in front of robot
+	w = 0
+	v = np.array((0.0, 1.0))  # 1 m/s velocity in Y direction
+	self.obs.point.x = 0.5
+	self.obs.point.y = 1.5
+	dv, dw = obs_avoid2.calculate_velocity_adjustment(v, w, self.obs, self.boundary, self.center_of_rotation)
+        self.assertEquals("[ 0. 0.]", str(dv))
+
+    def test_should_stop_if_obs_in_front00(self):
+	# change obstacle - move it to the center of robot
+	w = 0
+	v = np.array((0.0, 1.0))  # 1 m/s velocity in Y direction
+	self.obs.point.x = 0.5
+	self.obs.point.y = 0.5
+	dv, dw = obs_avoid2.calculate_velocity_adjustment(v, w, self.obs, self.boundary, self.center_of_rotation)
+        self.assertEquals("[ -1. -1.]", str(dv))
+
+    def test_should_stop_if_obs_behind1(self):
+	# change obstacle - move it behind
+	w = 0
+	v = np.array((0.0, 1.0))  # 1 m/s velocity in Y direction
+	self.obs.point.x = 0.5
+	self.obs.point.y = -1
+	dv, dw = obs_avoid2.calculate_velocity_adjustment(v, w, self.obs, self.boundary, self.center_of_rotation)
+        self.assertEquals("[ 0. 0.]", str(dv))
 
     def test_should_go_if_obs_to_side(self):
         pass
