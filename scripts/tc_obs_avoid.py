@@ -116,8 +116,9 @@ class TestObstacleAvoidance(unittest.TestCase):
 	fast = obs_avoid.FAST_THRESHOLD
 	factor = obs_avoid.SLOW_FACTOR
 	ranges = [0.0, stop / 2, stop, (stop + slow) / 2, slow, (slow + fast) / 2, fast, fast + 0.25, fast + 0.5]
-	expected_scales = str([0.0, 0.0, 0.0, factor / 2, factor, (factor + 1.0) / 2, 1.0, 1.0, 1.0])
-	self.assertEquals(expected_scales, str([round(obs_avoid.compute_scale(r), 3) for r in ranges]))
+	expected_scales = [0.0, 0.0, 0.0, factor / 2, factor, (factor + 1.0) / 2, 1.0, 1.0, 1.0]
+	actual_scales = [round(obs_avoid.compute_scale(r), 3) for r in ranges]
+	self.assertEquals(str(expected_scales), str(actual_scales))
 
 
     def test_calculate_velocity_adjustment(self):
