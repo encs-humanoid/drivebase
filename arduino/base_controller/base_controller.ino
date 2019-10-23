@@ -124,10 +124,10 @@ double getDistance(int trigPin, int echoPin)
 /*
  * Map the motor numbers (on the Ken frame) to Arduino pin numbers
  */
-#define MOTOR1   18   // Front right
-#define MOTOR2   19   // Back left
-#define MOTOR3   20   // Back right
-#define MOTOR4   21   // Front left
+#define MOTOR1   2   // Front right
+#define MOTOR2   3   // Back left
+#define MOTOR3   4   // Back right
+#define MOTOR4   5   // Front left
 
 Servo   frontRight;   // Motor 1
 Servo   backLeft;     // Motor 2
@@ -311,7 +311,7 @@ static const int stateChange[16] =
 // Note: quadPins is arranged as {{4A,4B},{3A,3B},{2A,2B},{1A,1B}} with interrupts
 //       on phase A, and non-interrupts on phase B
 #define NUM_QUADRATURES  4
-static const int quadPins[NUM_QUADRATURES][2] = {{10,4}, {11,5}, {12,6}, {13,7}};
+static const int quadPins[NUM_QUADRATURES][2] = {{10,6}, {11,7}, {12,8}, {13,9}};
 static const int quadPinShift[NUM_QUADRATURES] = {0, 2, 4, 6};
 volatile int quadValues[NUM_QUADRATURES];
 volatile int previousQuads = 0;
@@ -445,8 +445,8 @@ void setup()
   }
 
   // Background task to run the motor PID controls (10hz rate, so every 100ms)
-  MsTimer2::set(100, PIDtimerIRQ);
-  MsTimer2::start();
+  //MsTimer2::set(200, PIDtimerIRQ);
+  //MsTimer2::start();
 }
 
 
@@ -481,4 +481,7 @@ void loop()
   //   that is a publish (like range_pub) before spinonce, and do any
   //   actions that consume the data (like adjust motor speed) after spinonce
   nh.spinOnce();
+
+  MecanumDrive(drive_mmps,strafe_mmps,theta_mrps);
+
 }
